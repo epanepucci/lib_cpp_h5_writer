@@ -56,6 +56,7 @@ class WriterManager
 
         size_t get_n_frames();
         size_t get_n_written_frames();
+        size_t get_n_received_frames();
 };
 
 #endif

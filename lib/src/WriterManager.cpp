@@ -213,3 +213,8 @@ size_t WriterManager::get_n_written_frames()
 {
     return n_written_frames;
 }
+
+size_t WriterManager::get_n_received_frames()
+{
+    return n_received_frames;
+}
