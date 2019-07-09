@@ -55,6 +55,7 @@ class WriterManager
         void lost_frame(size_t frame_index);
 
         size_t get_n_frames();
+        size_t get_n_written_frames();
 };
 
 #endif
