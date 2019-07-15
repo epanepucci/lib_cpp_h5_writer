@@ -218,3 +218,13 @@ size_t WriterManager::get_n_received_frames()
 {
     return n_received_frames;
 }
+
+int WriterManager::get_user_id()
+{
+    return user_id;
+}
+
+uint64_t WriterManager::get_n_lost_frames()
+{
+    return n_lost_frames;
+}

@@ -237,7 +237,7 @@ bool RingBuffer::is_empty()
     return buffer_used_slots == 0;
 }
 
-int RingBuffer::free_slots()
+size_t RingBuffer::free_slots()
 {
     lock_guard<mutex> lock(ringbuffer_slots_mutex);
     

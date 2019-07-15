@@ -13,17 +13,26 @@
 #include "BufferedWriter.hpp"
 
 using namespace std;
+namespace pt = boost::property_tree;
 
 ProcessManager::ProcessManager(WriterManager& writer_manager, ZmqReceiver& receiver, RingBuffer& ring_buffer, 
-    const H5Format& format, uint16_t rest_port, const string& bsread_rest_address, hsize_t frames_per_file) :
+    const H5Format& format, uint16_t rest_port, const string& bsread_rest_address, hsize_t frames_per_file, ZmqSender& sender) :
         writer_manager(writer_manager), receiver(receiver), ring_buffer(ring_buffer), format(format), rest_port(rest_port), 
-        bsread_rest_address(bsread_rest_address), frames_per_file(frames_per_file)
+        bsread_rest_address(bsread_rest_address), frames_per_file(frames_per_file), sender(sender)
 {
 }
 
 void ProcessManager::notify_first_pulse_id(uint64_t pulse_id) 
 {
+    // time of the first pulse_id
+    time_start = std::chrono::system_clock::now();
+    // value of the first pulse_id
+    first_pulse_id = pulse_id;
+    
+
+
     string request_address(bsread_rest_address);
+
 
     // First pulse_id should be an async operation - we do not want to make the writer wait.
     async(launch::async, [pulse_id, &request_address]{
@@ -42,6 +51,9 @@ void ProcessManager::notify_first_pulse_id(uint64_t pulse_id)
                 cout << "[ProcessManager::notify_first_pulse_id] Sending request (" << request_call << ")." << endl;
             #endif
 
+            // zmq sending start statistics
+            send_start_statistics("statisticsWriter");
+
             system(request_call.c_str());
         } catch (...){}
         
@@ -52,6 +64,8 @@ void ProcessManager::notify_last_pulse_id(uint64_t pulse_id)
 {
     // Last pulse_id should be a sync operation - we do not want to terminate the process to quickly.
     cout << "Sending last received pulse_id " << pulse_id << " to bsread address " << bsread_rest_address << endl;
+    // time of the last pulse_id
+    time_end = std::chrono::system_clock::now();
 
     try {
         stringstream request;
@@ -66,6 +80,8 @@ void ProcessManager::notify_last_pulse_id(uint64_t pulse_id)
             cout << "[" << std::chrono::system_clock::now() << "]";
             cout << "[ProcessManager::notify_last_pulse_id] Sending request (" << request_call << ")." << endl;
         #endif
+        // sending final statistics
+        send_final_statistics("statisticsWriter");
 
         system(request_call.c_str());
     } catch (...){}
@@ -257,6 +273,13 @@ void ProcessManager::write_h5()
             cout << "[ProcessManager::write_h5] Frame metadata index "; 
             cout << received_data.first->frame_index << " written in " << metadata_diff_ms << " ms." << endl;
         #endif
+
+        // VALUES NEED TO BE DEFINED
+        auto processing_rate = 0.0;
+        auto receiving_rate = 0.0;
+        auto writting_rate = 0.0;
+        auto avg_compressed_size = 0.0;
+        send_adv_statistics("statisticsWriter", processing_rate, receiving_rate, writting_rate, avg_compressed_size);
         
         writer_manager.written_frame(received_data.first->frame_index);
     }
@@ -320,4 +343,54 @@ void ProcessManager::write_h5_format(H5::H5File& file) {
         std::cout << "[" << std::chrono::system_clock::now() << "]";
         std::cout << "[ProcessManager::write_h5_format] Error while trying to write file format: "<< ex.what() << endl;
     }
+}
+
+void ProcessManager::send_start_statistics(const std::string& filter){
+    // sends the statistics details to diaui statistics monitor
+    pt::ptree root;
+    pt::ptree stats_start_root;
+    // creates the start statistics json
+    stats_start_root.put("first_frame_id", first_pulse_id);
+    stats_start_root.put("n_frames", writer_manager.get_n_frames() );
+    stats_start_root.put("output_file", writer_manager.get_output_file());
+    stats_start_root.put("user_id", writer_manager.get_user_id());
+    stats_start_root.put("timestamp", time_start);
+    stats_start_root.put("compression_method", );
+    root.add_child("statistics_wr_finish", stats_start_root);
+    // sends the filter + json
+    sender->send(filter, root);
+}
+
+void ProcessManager::send_final_statistics(const std::string& filter){
+    // sends the statistics details to diaui statistics monitor
+    pt::ptree root;
+    pt::ptree stats_finish_root;
+    // creates the finish statistics json
+    stats_finish_root.put("end_time", time_end);
+    stats_finish_root.put("enable", "true");
+    stats_finish_root.put("n_lost_frames", writer_manager.get_n_lost_frames());
+    stats_finish_root.put("n_total_written_frames", writer_manager.get_n_written_frames());
+    root.add_child("statistics_wr_finish", stats_finish_root);
+    // sends the filter + json
+    sender->send(filter, root);
+}
+
+void ProcessManager::send_adv_statistics(const std::string& filter, const auto processing_rate, 
+            const auto receiving_rate, const auto writting_rate, const auto avg_compressed_size){
+
+    // sends the statistics details to diaui statistics monitor
+    pt::ptree root;
+    pt::ptree stats_adv_root;
+    // creates the adv statistics json
+    stats_adv_root.put("n_written_frames", writer_manager.get_n_written_frames());
+    stats_adv_root.put("n_received_frames", writer_manager.get_n_received_frames());
+    stats_adv_root.put("n_free_slots", ring_buffer.free_slots());
+    stats_adv_root.put("enable": "true");
+    stats_adv_root.put("processing_rate", processing_rate);
+    stats_adv_root.put("receiving_rate", receiving_rate);
+    stats_adv_root.put("writting_rate", writting_rate);
+    stats_adv_root.put("avg_compressed_size", avg_compressed_size);
+    root.add_child("statistics_wr_adv", stats_adv_root);
+    // sends the filter + json
+    sender->send(filter, root);
 }

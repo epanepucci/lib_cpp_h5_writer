@@ -34,7 +34,7 @@ class WriterManager
     std::atomic<uint64_t> n_lost_frames;
 
     public:
-        WriterManager(const std::unordered_map<std::string, DATA_TYPE>& parameters_type, const std::string& output_file, uint64_t n_frames=0);
+        WriterManager(const std::unordered_map<std::string, DATA_TYPE>& parameters_type, const std::string& output_file, uint64_t n_frames=0, int user_id);
         virtual ~WriterManager();
 
         void stop();
@@ -57,6 +57,9 @@ class WriterManager
         size_t get_n_frames();
         size_t get_n_written_frames();
         size_t get_n_received_frames();
+        int get_user_id();
+        uint64_t get_n_lost_frames();
+
 };
 
 #endif
