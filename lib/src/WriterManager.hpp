@@ -44,6 +44,7 @@ class WriterManager
         std::string get_status();
         bool are_all_parameters_set();
         std::string get_output_file() const;
+        
 
         const std::unordered_map<std::string, DATA_TYPE>& get_parameters_type() const;
         std::unordered_map<std::string, boost::any> get_parameters();
@@ -55,11 +56,29 @@ class WriterManager
         void lost_frame(size_t frame_index);
 
         size_t get_n_frames();
+
+        uint64_t first_pulse_id;
+        std::chrono::steady_clock::time_point time_start;
+        std::chrono::steady_clock::time_point time_end;
+
+        std::string get_filter();
+        pt::ptree get_statistics();
+        bool stat_available;
+        int get_user_id();
+        uint64_t get_first_pulse_id();
+        void set_first_pulse_id_time_start(uint64_t pulse_id, std::chrono::steady_clock::time_point timestamp);
+        void set_time_end(std::chrono::steady_clock::time_point timestamp);
         size_t get_n_written_frames();
         size_t get_n_received_frames();
-        int get_user_id();
         uint64_t get_n_lost_frames();
 
+        bool get_stat();
+
+        std::tuple<bool, std::string> mode_category;
+        void set_mode_category(const bool new_mode, const std::string new_category);
+
+        std::chrono::duration<double> processing_rate;
+        void set_processing_rate(std::chrono::duration<double> diff);
 };
 
 #endif

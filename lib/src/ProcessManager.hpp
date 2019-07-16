@@ -24,10 +24,7 @@ class ProcessManager
     void notify_first_pulse_id(uint64_t pulse_id);
     void notify_last_pulse_id(uint64_t pulse_id);
 
-    std::chrono::steady_clock::time_point time_start;
-    std::chrono::steady_clock::time_point time_end;
 
-    uint64_t first_pulse_id;
 
 
 
@@ -40,6 +37,8 @@ class ProcessManager
         void run_writer();
 
         void receive_zmq();
+
+        void send_writer_stats();
 
         void write_h5();
 

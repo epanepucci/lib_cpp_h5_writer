@@ -51,15 +51,23 @@ void ZmqSender::send(const std::string& filter, zmq::message_t message_data)
         throw runtime_error(error_message.str());
     }
     
-    // Send the message
-    auto rc = sender->send_string(filter, ZMQ_SNDMORE)
-    rc = sender->send(message_data)
+    // Send the message 
+    // rv is the return value
+    auto rv0 = sender->send_string(filter, ZMQ_SNDMORE)
+    auto rv1 = sender->send(message_data)
 
     // verifies the return value
-    if (rc != 0) {
+    if (rv0 != 0 && rv1 != 0) {
         using namespace date;
         cout << "[" << std::chrono::system_clock::now() << "]";
         cout << "[ZmqSender::send] Error while sending statistics via ZMQ."; 
     }
+}
 
+void ZmqSender::get_stat(){
+    return stat;
+}
+
+void ZmqSender::get_mode(){
+    return mode;
 }

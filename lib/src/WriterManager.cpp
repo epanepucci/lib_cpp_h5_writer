@@ -51,7 +51,8 @@ void writer_utils::create_destination_folder(const string& output_file)
 WriterManager::WriterManager(const unordered_map<string, DATA_TYPE>& parameters_type, 
     const string& output_file, uint64_t n_frames):
         parameters_type(parameters_type), output_file(output_file), n_frames(n_frames), 
-        running_flag(true), killed_flag(false), n_received_frames(0), n_written_frames(0), n_lost_frames(0)
+        running_flag(true), killed_flag(false), n_received_frames(0), n_written_frames(0), 
+        n_lost_frames(0), mode_category(std::make_tuple(false, ""));
 {
     #ifdef DEBUG_OUTPUT
         using namespace date;
@@ -227,4 +228,83 @@ int WriterManager::get_user_id()
 uint64_t WriterManager::get_n_lost_frames()
 {
     return n_lost_frames;
+}
+
+uint64_t WriterManager::get_first_pulse_id()
+{
+    return first_pulse_id;
+}
+
+std::chrono::steady_clock::time_point WriterManager::get_start_time()
+{
+    return start_time;
+}
+
+void WriterManager::set_first_pulse_id_time_start(uint64_t pulse_id, std::chrono::steady_clock::time_point timestamp)
+{
+    first_pulse_id = pulse_id;
+    time_start = timestamp;
+}
+
+std::string WriterManager::get_filter(){
+    return "statisticsWriter";
+}
+
+void set_mode_category(bool new_mode, std::string new_cat)
+{
+    mode_category = std::make_tuple(new_mode, new_cat);
+}
+
+std::tuple<bool, std::string> get_mode_category()
+{
+    return mode_category;
+}
+
+void set_processing_rate(std::chrono::duration<double> diff)
+{
+    processing_rate = diff;
+}
+
+pt::ptree WriterManager::get_statistics(){
+    pt::ptree root;
+    pt::ptree stats_json;
+    switch (  std::get<1>(mode_category) ) {
+        case "start":
+            stats_json.put("first_frame_id", first_pulse_id);
+            stats_json.put("n_frames", get_n_frames() );
+            stats_json.put("output_file", get_output_file());
+            stats_json.put("user_id", get_user_id());
+            stats_json.put("timestamp", time_start);
+            stats_json.put("compression_method", );
+            root.add_child("statistics_wr_finish", stats_json);
+            break;
+        case "adv":
+            // calculates the elapsed time from beginning
+            auto time_diff = (std::chrono::system_clock::now() - time_start)
+            // received_rate = total number of received frames / elapsed time
+            auto receiving_rate = get_n_received_frames() / time_diff;
+            // writting_rate = total number of written frames / elapsed time
+            auto writting_rate = get_n_written_frames() / time_diff;
+            stats_json.put("n_written_frames", get_n_written_frames());
+            stats_json.put("n_received_frames", get_n_received_frames());
+            stats_json.put("n_free_slots", ring_buffer.free_slots());
+            stats_json.put("enable": "true");
+            stats_json.put("processing_rate", processing_rate.count());
+            stats_json.put("receiving_rate", receiving_rate);
+            stats_json.put("writting_rate", writting_rate);
+            stats_json.put("avg_compressed_size", 0.0);
+            root.add_child("statistics_wr_adv", stats_json);
+            break;
+        case "end":
+            // creates the finish statistics json
+            stats_json.put("end_time", time_end);
+            stats_json.put("enable", "true");
+            stats_json.put("n_lost_frames", get_n_lost_frames());
+            stats_json.put("n_total_written_frames", get_n_written_frames());
+            root.add_child("statistics_wr_finish", stats_json);
+        default:
+            root.add_child("unidentified_mode", "unidentified_mode");
+            break;
+    }    
+    return root;
 }

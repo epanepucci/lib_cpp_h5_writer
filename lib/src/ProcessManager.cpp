@@ -24,12 +24,8 @@ ProcessManager::ProcessManager(WriterManager& writer_manager, ZmqReceiver& recei
 
 void ProcessManager::notify_first_pulse_id(uint64_t pulse_id) 
 {
-    // time of the first pulse_id
-    time_start = std::chrono::system_clock::now();
-    // value of the first pulse_id
-    first_pulse_id = pulse_id;
-    
-
+    // sets value of the first pulse_id + timestamp on the writer_manager
+    writer_manager.set_first_pulse_id_time_start(pulse_id, std::chrono::system_clock::now());
 
     string request_address(bsread_rest_address);
 
@@ -51,8 +47,8 @@ void ProcessManager::notify_first_pulse_id(uint64_t pulse_id)
                 cout << "[ProcessManager::notify_first_pulse_id] Sending request (" << request_call << ")." << endl;
             #endif
 
-            // zmq sending start statistics
-            send_start_statistics("statisticsWriter");
+            // writer is ready to send stats
+            writer_manager.set_mode_category(true, "start");
 
             system(request_call.c_str());
         } catch (...){}
@@ -65,7 +61,7 @@ void ProcessManager::notify_last_pulse_id(uint64_t pulse_id)
     // Last pulse_id should be a sync operation - we do not want to terminate the process to quickly.
     cout << "Sending last received pulse_id " << pulse_id << " to bsread address " << bsread_rest_address << endl;
     // time of the last pulse_id
-    time_end = std::chrono::system_clock::now();
+    writer_manager.set_time_end(std::chrono::system_clock::now());
 
     try {
         stringstream request;
@@ -80,8 +76,10 @@ void ProcessManager::notify_last_pulse_id(uint64_t pulse_id)
             cout << "[" << std::chrono::system_clock::now() << "]";
             cout << "[ProcessManager::notify_last_pulse_id] Sending request (" << request_call << ")." << endl;
         #endif
-        // sending final statistics
-        send_final_statistics("statisticsWriter");
+        
+        // writer is ready to send stats
+        writer_manage.set_mode_category(true, "end")
+        
 
         system(request_call.c_str());
     } catch (...){}
@@ -99,6 +97,7 @@ void ProcessManager::run_writer()
     #endif
 
     boost::thread receiver_thread(&ProcessManager::receive_zmq, this);
+    boost::thread sender_writer_thread(&ProcessManager::send_writer_stats, this);
     boost::thread writer_thread(&ProcessManager::write_h5, this);
 
     RestApi::start_rest_api(writer_manager, rest_port);
@@ -113,6 +112,7 @@ void ProcessManager::run_writer()
     writer_manager.stop();
 
     receiver_thread.join();
+    sender_writer_thread.join();
     writer_thread.join();
 
     #ifdef DEBUG_OUTPUT
@@ -184,7 +184,7 @@ void ProcessManager::write_h5()
             boost::this_thread::sleep_for(boost::chrono::milliseconds(config::ring_buffer_read_retry_interval));
             continue;
         }
-
+        auto start_processing_rate = std::chrono::steady_clock::now();
         const pair< shared_ptr<FrameMetadata>, char* > received_data = ring_buffer.read();
         
         // NULL pointer means that the ringbuffer->read() timeouted. Faster than rising an exception.
@@ -274,14 +274,12 @@ void ProcessManager::write_h5()
             cout << received_data.first->frame_index << " written in " << metadata_diff_ms << " ms." << endl;
         #endif
 
-        // VALUES NEED TO BE DEFINED
-        auto processing_rate = 0.0;
-        auto receiving_rate = 0.0;
-        auto writting_rate = 0.0;
-        auto avg_compressed_size = 0.0;
-        send_adv_statistics("statisticsWriter", processing_rate, receiving_rate, writting_rate, avg_compressed_size);
+
         
         writer_manager.written_frame(received_data.first->frame_index);
+
+        writer_manager.set_processing_rate(std::chrono::system_clock::now() - start_processing_rate)
+        writer_manager.set_mode_category(true, "adv");
     }
 
     // Send the last_pulse_id only if it was set.
@@ -345,52 +343,28 @@ void ProcessManager::write_h5_format(H5::H5File& file) {
     }
 }
 
-void ProcessManager::send_start_statistics(const std::string& filter){
-    // sends the statistics details to diaui statistics monitor
-    pt::ptree root;
-    pt::ptree stats_start_root;
-    // creates the start statistics json
-    stats_start_root.put("first_frame_id", first_pulse_id);
-    stats_start_root.put("n_frames", writer_manager.get_n_frames() );
-    stats_start_root.put("output_file", writer_manager.get_output_file());
-    stats_start_root.put("user_id", writer_manager.get_user_id());
-    stats_start_root.put("timestamp", time_start);
-    stats_start_root.put("compression_method", );
-    root.add_child("statistics_wr_finish", stats_start_root);
-    // sends the filter + json
-    sender->send(filter, root);
-}
+void ProcessManager::send_writer_stats(){
 
-void ProcessManager::send_final_statistics(const std::string& filter){
-    // sends the statistics details to diaui statistics monitor
-    pt::ptree root;
-    pt::ptree stats_finish_root;
-    // creates the finish statistics json
-    stats_finish_root.put("end_time", time_end);
-    stats_finish_root.put("enable", "true");
-    stats_finish_root.put("n_lost_frames", writer_manager.get_n_lost_frames());
-    stats_finish_root.put("n_total_written_frames", writer_manager.get_n_written_frames());
-    root.add_child("statistics_wr_finish", stats_finish_root);
-    // sends the filter + json
-    sender->send(filter, root);
-}
+    sender.bind()
 
-void ProcessManager::send_adv_statistics(const std::string& filter, const auto processing_rate, 
-            const auto receiving_rate, const auto writting_rate, const auto avg_compressed_size){
+    while (writer_manager.is_running()) {
+        // mode indicates if there is statistics to be sent out
+        auto [mode, category] = writer_manager.get_mode_category();
+        if ( mode ){
+            // fetches the statistic from the writer manager
+            const auto filter = writer_manager.get_filter();
+            const auto root = writer_manager.get_statistics();
+            // sends the filter + statistics json
+            sender->send(filter, root);
+            // after statistics was sent, redefine mode
+            writer_manager.set_mode_category(false, "")
+        }
+   }
 
-    // sends the statistics details to diaui statistics monitor
-    pt::ptree root;
-    pt::ptree stats_adv_root;
-    // creates the adv statistics json
-    stats_adv_root.put("n_written_frames", writer_manager.get_n_written_frames());
-    stats_adv_root.put("n_received_frames", writer_manager.get_n_received_frames());
-    stats_adv_root.put("n_free_slots", ring_buffer.free_slots());
-    stats_adv_root.put("enable": "true");
-    stats_adv_root.put("processing_rate", processing_rate);
-    stats_adv_root.put("receiving_rate", receiving_rate);
-    stats_adv_root.put("writting_rate", writting_rate);
-    stats_adv_root.put("avg_compressed_size", avg_compressed_size);
-    root.add_child("statistics_wr_adv", stats_adv_root);
-    // sends the filter + json
-    sender->send(filter, root);
+    #ifdef DEBUG_OUTPUT
+        using namespace date;
+        cout << "[" << std::chrono::system_clock::now() << "]";
+        cout << "[ProcessManager::send_writer_stats] Sender zmq statistics thread stopped." << endl;
+    #endif
+
 }
