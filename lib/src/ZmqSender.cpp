@@ -64,10 +64,14 @@ void ZmqSender::send(const std::string& filter, zmq::message_t message_data)
     }
 }
 
-void ZmqSender::get_stat(){
+bool ZmqSender::get_stat(){
     return stat;
 }
 
 void ZmqSender::get_mode(){
     return mode;
+}
+
+void ZmqSender::set_stat_mode(bool stat, const string& mode_indication){
+    stat = 
 }
