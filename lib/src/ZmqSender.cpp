@@ -53,8 +53,8 @@ void ZmqSender::send(const std::string& filter, zmq::message_t message_data)
     
     // Send the message 
     // rv is the return value
-    auto rv0 = sender->send_string(filter, ZMQ_SNDMORE)
-    auto rv1 = sender->send(message_data)
+    auto rv0 = sender->send_string(filter, ZMQ_SNDMORE);
+    auto rv1 = sender->send(message_data);
 
     // verifies the return value
     if (rv0 != 0 && rv1 != 0) {

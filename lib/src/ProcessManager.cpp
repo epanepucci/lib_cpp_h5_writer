@@ -357,7 +357,7 @@ void ProcessManager::send_writer_stats(){
             // sends the filter + statistics json
             sender->send(filter, root);
             // after statistics was sent, redefine mode
-            writer_manager.set_mode_category(false, "")
+            writer_manager.set_mode_category(false, "");
         }
    }
 
