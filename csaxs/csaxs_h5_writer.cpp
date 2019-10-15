@@ -41,7 +41,7 @@ int main (int argc, char *argv[])
         writer_utils::set_process_id(user_id);
     }
 
-    writer_utils::create_destination_folder(output_file);   
+    writer_utils::create_destination_folder(output_file);
 
     auto header_values = shared_ptr<unordered_map<string, HeaderDataType>>(new unordered_map<string, HeaderDataType> {
         {"frame", HeaderDataType("uint64")},
@@ -60,11 +60,12 @@ int main (int argc, char *argv[])
     });
 
     CsaxsFormat format("images");
-
-    WriterManager writer_manager(format.get_input_value_type(), output_file, n_frames, user_id);
+    
+    RingBuffer ring_buffer(config::ring_buffer_n_slots);
+    WriterManager writer_manager(format.get_input_value_type(), output_file, user_id, &ring_buffer, n_frames);
     ZmqReceiver receiver(connect_address, config::zmq_n_io_threads, config::zmq_receive_timeout, header_values);
     ZmqSender sender(statistic_monitor_address, config::zmq_n_io_threads, config::zmq_receive_timeout);
-    RingBuffer ring_buffer(config::ring_buffer_n_slots);
+    
 
     ProcessManager process_manager(writer_manager, receiver, ring_buffer, format, rest_port, bsread_rest_address, sender);
     process_manager.run_writer();

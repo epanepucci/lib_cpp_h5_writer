@@ -20,6 +20,7 @@ class ZmqSender
     const int receive_timeout;
     std::string filter;
     bool stat;
+    const int n_io_threads;
     std::string mode;
 
     std::shared_ptr<zmq::socket_t> sender = NULL;

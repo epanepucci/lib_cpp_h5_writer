@@ -31,8 +31,8 @@ class ProcessManager
     public:
         ProcessManager(WriterManager& writer_manager, ZmqReceiver& receiver, 
             RingBuffer& ring_buffer, const H5Format& format, uint16_t rest_port, 
-            const std::string& bsread_rest_address, hsize_t frames_per_file=0,
-            ZmqSender& sender);
+            const std::string& bsread_rest_address, ZmqSender& sender, 
+            hsize_t frames_per_file=0);
 
         void run_writer();
 

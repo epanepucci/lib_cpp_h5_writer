@@ -345,17 +345,17 @@ void ProcessManager::write_h5_format(H5::H5File& file) {
 
 void ProcessManager::send_writer_stats(){
 
-    sender.bind()
+    sender.bind();
 
     while (writer_manager.is_running()) {
         // mode indicates if there is statistics to be sent out
         auto [mode, category] = writer_manager.get_mode_category();
         if ( mode ){
             // fetches the statistic from the writer manager
-            const auto filter = writer_manager.get_filter();
-            const auto root = writer_manager.get_statistics();
+            auto filter = writer_manager.get_filter();
+            auto root = writer_manager.get_statistics();
             // sends the filter + statistics json
-            sender->send(filter, root);
+            sender.send(filter, root);
             // after statistics was sent, redefine mode
             writer_manager.set_mode_category(false, "");
         }
